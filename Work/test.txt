@@ -1,0 +1,29 @@
+command: run report.py data/portfolio.csv data/prices.csv
+output: An exception has occurred, use %tb to see the full traceback.
+
+command:  portfolio = report.read_portfolio('data/missing.csv', silence_errors = True)
+output: (blank)
+
+command: portfolio = report.read_portfolio('data/missing.csv')
+output: Row 5: Couldn't process ['MSFT', '', '51.23']. Reason: invalid literal for int() with base 10: ''
+Row 8: Couldn't process ['IBM', '', '70.44']. Reason: invalid literal for int() with base 10: ''
+
+command: len(portfolio)
+output: 5
+
+command: portfolio[2]
+output: Stock('CAT', 150, 83.44)
+
+command: portfolio[:3]
+output: [Stock('AA', 100, 32.2), Stock('IBM', 50, 91.1), Stock('CAT', 150, 83.44)]
+
+command: port = Portfolio.from_csv('data/portfolio.csv')
+1. len(port)
+2. port[:3]
+output: 
+1. 7 
+2.  [Stock('AA', 100, 32.2), Stock('IBM', 50, 91.1), Stock('CAT', 150, 83.44)]
+
+
+
+
