@@ -1,5 +1,5 @@
-Prompt: Im a college student in a intro to python programming class who created the following two py files, help me enhance these files to catch typo and formatting errors along with enhancements I can make to make these files more efficient
-AI response: 
+#Prompt: Im a college student in a intro to python programming class who created the following two py files, help me enhance these files to catch typo and formatting errors along with enhancements I can make to make these files more efficient
+#AI response: 
 Your code is already clean and works, and I found no real typos. What's left is mostly small robustness fixes and style cleanup. Here are the main changes, then the full revised files.
 
 **fileparse.py**
