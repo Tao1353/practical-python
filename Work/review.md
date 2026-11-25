@@ -82,6 +82,7 @@ My original code handled bad numbers and blank lines, so those were probably alr
 6. **Short rows and unterminated quotes:** these crashed the original with an uncaught `IndexError`, so one bad row lost the whole file.
 7. **Formats that should fail:** `$` prefix, scientific notation (`1e3`), and decimal shares are rejected correctly, but they are real-world patterns.
 8. **Unterminated quote mid-file:** It was generated only as the last row, so the mid-file version was tested separately, where it swallows the following rows.
+
 #Bug Implementation
 The bug I injected: in main(), the two lines filename = args[1] and print('Total cost:', portfolio_cost(filename)) are now indented one level too far, so they sit inside the if len(args) != 2: block. They come after the raise SystemExit(...), so they can never run. I ran it with a stand-in report module and a valid argument. The program exits with code 0, prints nothing, and shows no error.
 ##Why I thought it would be hard to find:
