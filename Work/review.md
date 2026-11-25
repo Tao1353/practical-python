@@ -18,9 +18,15 @@
 |Replace `s.shares * s.price` with `s.cost` in `total_cost`|No|Only works if `Stock` has a `cost` property, and I would need to check my `stock.py` first|
 |Guard against `select` or `types` being passed in `**opts` of `from_csv`|No|Not needed for this assignment, since `from_csv` is only called with other options|
 |Run `flake8` on both files|No|A tool to use in the future, not a change to the code itself|
+
 # Edge-Case Report: fileparse.py and portfolio.py
 
-I ran each of the 15 data rows in `edge_cases.csv` through the parser one at a time (with the header), then as a whole file, using the same options `Portfolio.from_csv` uses: `select=['name','shares','price']` and `types=[str, int, float]`. "Before" is my original `fileparse.py`. "After" is the fixed version.
+I ran each of the 15 data rows in `edge_cases.csv` through the parser one at a time (with the header), then as a whole file, using the same options `Portfolio.from_csv` uses:
+
+```python
+select=['name', 'shares', 'price']
+types=[str, int, float]
+```
 
 ## Results by row
 
@@ -33,62 +39,79 @@ I ran each of the 15 data rows in `edge_cases.csv` through the parser one at a t
 |6|`MSFT,10.5,45.00`|Skipped|Skipped|**Should fail by design.** `types` says `int`; fractional shares would need `float`|
 |7|`CAT,-100,83.44`|**Accepted (wrong)**|Skipped: negative shares|**Fixed** in `Portfolio`. Negative shares make `total_cost` negative; short positions need their own design|
 |8|`HPQ,50`|**Raised `IndexError`**, which aborted the whole file|Skipped: expected 3 fields, got 2|**Fixed** by the field-count check|
-|9|`,200,15.00`|**Accepted (wrong)**, blank name|Skipped: missing name|**Fixed** in `Portfolio`. A blank name can't be looked up and would group wrongly in `tabulate_shares`|
-|10|`KO,1,000,45.10`|**Accepted (wrong)** as KO, 1 share, price 0.0. The real price was silently dropped|Skipped: expected 3 fields, got 4|**Fixed** by the field-count check. This was the most dangerous row|
-|11|`PG,100,$31.20`|Skipped|Skipped|**Should fail.** Stripping `$` is a data-cleaning choice (and which currency?), so I left it strict|
+|9|`,200,15.00`|**Accepted (wrong)**, blank name|Skipped: missing name|**Fixed** in `Portfolio`. A blank name cannot be looked up and would group incorrectly in `tabulate_shares`|
+|10|`KO,1,000,45.10`|**Accepted (wrong)** as KO, 1 share, price 0.0. The real price was silently dropped|Skipped: expected 3 fields, got 4|**Fixed** by the field-count check. This is the most dangerous case because an unquoted comma silently changes the data|
+|11|`PG,100,$31.20`|Skipped|Skipped|**Should fail.** Stripping `$` is a data-cleaning choice, and the currency is unspecified, so I left it strict|
 |12|`  AMZN  , 20 ,1500.00`|**Accepted (wrong)** with the name `'  AMZN  '`, so `'AMZN' in portfolio` was `False`|Accepted as `'AMZN'`|**Fixed** with `strip=True`|
-|13|`T,1e3,22.5`|Skipped|Skipped|**Should fail.** `int('1e3')` is invalid; going through `float` could hide rounding problems|
+|13|`T,1e3,22.5`|Skipped|Skipped|**Should fail.** `int('1e3')` is invalid; converting through `float` could hide rounding problems|
 |14|`F,100,NaN`|**Accepted (wrong)**, `total_cost` becomes `nan`|Skipped: price must be finite|**Fixed** in `Portfolio` with `math.isfinite`|
-|15|`XOM,100,45.10,extra,fields`|**Accepted (wrong)**, extra fields silently ignored|Skipped: expected 3 fields, got 5|**Fixed** by the field-count check. It has the same shape as row 10, so it can't be trusted|
-|16|`"BA,100,98.25`|**Raised `IndexError`**|Skipped: expected 3 fields, got 1|**Should fail.** The quote is never closed and `csv` can't recover (see limitation below)|
+|15|`XOM,100,45.10,extra,fields`|**Accepted (wrong)**, extra fields silently ignored|Skipped: expected 3 fields, got 5|**Fixed** by the field-count check. It has the same shape as row 10, so it cannot be trusted|
+|16|`"BA,100,98.25`|**Raised `IndexError`**|Skipped: expected 3 fields, got 1|**Should fail.** The quote is never closed and `csv` cannot recover|
 
-**Totals for the original parser:** 2 rows raised, 6 were silently accepted with wrong or suspect data (rows 7, 9, 10, 12, 14, 15), 6 were correctly rejected, and 1 was correct. Because the first raise (row 8) was uncaught, the whole-file run crashed there and returned nothing.
+**Totals for the original parser:** 2 rows raised, 6 were silently accepted with wrong or suspect data (rows 7, 9, 10, 12, 14, and 15), 6 were correctly rejected, and 1 was correct. Because the first raised row aborted the whole-file test, the original parser could not complete it.
 
-**After the fixes**, `Portfolio.from_csv` on the whole file keeps 2 holdings (Smith, Jones & Co and AMZN, `total_cost` 30625.0) and reports the other 13 rows on stderr with a reason.
+**After the fixes:** `Portfolio.from_csv` on the whole file keeps 2 holdings (Smith, Jones & Co and AMZN, `total_cost` 30625.0) and reports the other 13 rows on stderr with a reason.
 
 ## What changed
 
 **fileparse.py**
-- Field count: with headers, a row whose field count differs from the header's is rejected, which catches rows 8, 10, 15 and 16.
-- Whitespace: new `strip=True` option removes leading and trailing whitespace from headers and values.
-- Line numbers: now use `rows.line_num`, so they stay correct when a quoted field spans lines.
+
+- Field count: with headers, a row whose field count differs from the header's is rejected. This catches rows 8, 10, 15, and 16.
+- Whitespace: the new `strip=True` option removes leading and trailing whitespace from headers and values.
+- Line numbers: row numbers now use `rows.line_num`, so they remain correct when a quoted field spans lines.
 
 **portfolio.py**
-- New `_check_holding()` rejects a blank name, negative shares, and a negative or non-finite price. It respects `silence_errors`.
 
-## Other cases I checked
+- New `_check_holding()` rejects a blank name, negative shares, and a negative or non-finite price.
+- It respects `silence_errors`.
+
+## Other cases checked
 
 |Case|Result|
 |:---|:---|
 |`inf`, `-inf`, negative price|Rejected|
-|Zero shares|Accepted on purpose (harmless, not clearly invalid)|
+|Zero shares|Accepted on purpose: harmless and not clearly invalid|
 |Header-only file|Empty portfolio|
 |Columns in a different order|Parsed correctly|
-|Empty file, or a missing `price` column|`RuntimeError` naming the column (loud on purpose, since nothing can be parsed)|
+|Empty file or missing `price` column|`RuntimeError` naming the column because no data can be parsed|
 
 ## Known limitation
 
-An unterminated quote in the middle of a file swallows the lines after it into one field. In my test, `BBB`, `CCC` and `DDD` all merged into one bad row, so 3 rows were lost with a single error message. The `csv` module can't resync after this, so this is documented rather than fixed.
+An unterminated quote in the middle of a file swallows the lines after it into one field. In my test, `BBB`, `CCC`, and `DDD` all merged into one bad row, so those three rows are lost and reported only through a single error message.
 
-## Bad rows the AI found that I may not have thought of
+## Bad rows the AI found that I had not considered
 
-My original code handled bad numbers and blank lines, so those were probably already on my radar. The cases below are the ones I had not accounted for.
+My original code handled bad numbers and blank lines, so those were probably already on my radar. The cases below were ones I had not accounted for.
 
-1. **Unquoted comma inside a number (`KO,1,000,45.10`):** no error at all, just wrong data. This is the one most worth remembering.
-2. **Extra fields (`XOM`):** same root cause, and it only worked by accident.
-3. **Whitespace padding:** values converted fine but broke lookups.
-4. **`NaN` / `inf`:** `float()` accepts them, and one bad price poisons `total_cost`.
-5. **Valid type, invalid meaning:** a negative share count or blank name converts without error, so type conversion alone doesn't validate data.
-6. **Short rows and unterminated quotes:** these crashed the original with an uncaught `IndexError`, so one bad row lost the whole file.
-7. **Formats that should fail:** `$` prefix, scientific notation (`1e3`), and decimal shares are rejected correctly, but they are real-world patterns.
-8. **Unterminated quote mid-file:** It was generated only as the last row, so the mid-file version was tested separately, where it swallows the following rows.
+1. **Unquoted comma inside a number (`KO,1,000,45.10`)**: no error at all, only wrong data. This is the one most worth remembering.
+2. **Extra fields (`XOM`)**: the same root cause and it only worked by accident.
+3. **Whitespace padding**: values converted successfully but broke lookups.
+4. **`NaN` and `inf`**: `float()` accepts them, and one bad price poisons `total_cost`.
+5. **Valid type, invalid meaning**: negative share counts or blank names convert without error, so type conversion alone does not validate data.
+6. **Short rows and unterminated quotes**: these raised uncaught `IndexError` exceptions, so one bad row could lose the whole file.
+7. **Formats that should fail**: `$` prefixes, scientific notation (`1e3`), and decimal shares are rejected correctly, but they are real-world patterns.
+8. **Unterminated quote mid-file**: it was generated as the last row initially, so I also tested the mid-file version; it swallowed the following rows.
 
-#Bug Implementation
-The bug I injected: in main(), the two lines filename = args[1] and print('Total cost:', portfolio_cost(filename)) are now indented one level too far, so they sit inside the if len(args) != 2: block. They come after the raise SystemExit(...), so they can never run. I ran it with a stand-in report module and a valid argument. The program exits with code 0, prints nothing, and shows no error.
-##Why I thought it would be hard to find:
- No error: the file is valid Python, so there is no IndentationError and no traceback to point at the problem.
- Silent failure: the program does not crash, it just does nothing. Many people assume the problem is in report.read_portfolio or total_cost and go looking there
- Looks natural: the lines are indented consistently under the if, so it reads as a plausible block at a glance. The clue is that they come after a raise.
- 
- My partner found the error in 10 minutes
+# Bug Implementation
 
+The injected bug was in `main()`: the two lines
+
+```python
+filename = args[1]
+print('Total cost:', portfolio_cost(filename))
+```
+
+were indented one level too far, placing them inside
+
+```python
+if len(args) != 2:
+```
+
+## Why it was hard to find
+
+- **No error:** the file is valid Python, so it produces no `IndentationError` or traceback.
+- **Silent failure:** the program does not crash. It simply does nothing.
+- **Natural appearance:** the lines look consistently indented under the `if`, so the block reads plausibly at a glance.
+- **No obvious clue:** the lines come after a `raise`, making the issue easy to miss.
+
+My partner found the error in 10 minutes.
